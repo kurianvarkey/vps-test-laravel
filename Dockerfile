@@ -43,82 +43,67 @@ COPY . .
 # Install dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Create necessary directories and set permissions
-RUN mkdir -p /var/www/html/storage/logs \
-    && mkdir -p /var/www/html/bootstrap/cache \
-    && chown -R www-data:www-data /var/www/html/storage \
-    && chown -R www-data:www-data /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage \
-    && chmod -R 775 /var/www/html/bootstrap/cache
+# Create ALL necessary directories with proper structure
+RUN mkdir -p storage/framework/cache/data \
+    && mkdir -p storage/framework/sessions \
+    && mkdir -p storage/framework/views \
+    && mkdir -p storage/logs \
+    && mkdir -p storage/app/public \
+    && mkdir -p bootstrap/cache
 
-# Copy nginx configuration
-RUN mkdir -p /etc/nginx/http.d
-COPY <<EOF /etc/nginx/http.d/default.conf
-server {
-    listen 80;
-    server_name _;
-    root /var/www/html/public;
+# Set ownership to www-data BEFORE setting permissions
+RUN chown -R www-data:www-data /var/www/html
 
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
+# Set proper permissions
+RUN chmod -R 775 storage \
+    && chmod -R 775 bootstrap/cache
 
-    index index.php;
+# Nginx configuration
+RUN rm -f /etc/nginx/http.d/default.conf && \
+    echo 'server {' > /etc/nginx/http.d/laravel.conf && \
+    echo '    listen 80;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    server_name _;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    root /var/www/html/public;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    index index.php;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    error_log /var/log/nginx/error.log;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    access_log /var/log/nginx/access.log;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    location / {' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        try_files $uri $uri/ /index.php?$query_string;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    }' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    location ~ \.php$ {' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        fastcgi_pass 127.0.0.1:9000;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        fastcgi_index index.php;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        include fastcgi_params;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    }' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    location ~ /\.(?!well-known).* {' >> /etc/nginx/http.d/laravel.conf && \
+    echo '        deny all;' >> /etc/nginx/http.d/laravel.conf && \
+    echo '    }' >> /etc/nginx/http.d/laravel.conf && \
+    echo '}' >> /etc/nginx/http.d/laravel.conf
 
-    charset utf-8;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    error_page 404 /index.php;
-
-    location ~ \.php$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-}
-EOF
-
-# Copy supervisor configuration
-COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
-[supervisord]
-nodaemon=true
-user=root
-logfile=/dev/stdout
-logfile_maxbytes=0
-
-[program:php-fpm]
-command=php-fpm --nodaemonize
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-
-[program:nginx]
-command=nginx -g 'daemon off;'
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-EOF
-
-# Cache Laravel configuration
-RUN php artisan config:cache && \
-    php artisan route:cache && \
-    php artisan view:cache
+# Supervisor configuration  
+RUN echo '[supervisord]' > /etc/supervisord.conf && \
+    echo 'nodaemon=true' >> /etc/supervisord.conf && \
+    echo 'user=root' >> /etc/supervisord.conf && \
+    echo 'logfile=/dev/stdout' >> /etc/supervisord.conf && \
+    echo 'logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo '[program:php-fpm]' >> /etc/supervisord.conf && \
+    echo 'command=php-fpm --nodaemonize' >> /etc/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo '[program:nginx]' >> /etc/supervisord.conf && \
+    echo 'command=nginx -g "daemon off;"' >> /etc/supervisord.conf && \
+    echo 'autostart=true' >> /etc/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisord.conf
 
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
