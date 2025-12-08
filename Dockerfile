@@ -51,9 +51,9 @@ RUN mkdir -p /var/www/html/storage/logs \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
-
 # Set ownership to www-data BEFORE setting permissions
 RUN chown -R www-data:www-data /var/www/html
+
 
 # Copy nginx configuration
 RUN mkdir -p /etc/nginx/http.d
