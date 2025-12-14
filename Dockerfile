@@ -4,7 +4,6 @@ FROM php:8.4-fpm-alpine
 RUN apk add --no-cache \
     nginx \
     supervisor \
-    postgresql-dev \
     mysql-client \
     libzip-dev \
     libpng-dev \
@@ -21,7 +20,6 @@ RUN apk add --no-cache \
 RUN docker-php-ext-install \
     pdo \
     pdo_mysql \
-    pdo_pgsql \
     mbstring \
     zip \
     exif \
@@ -52,71 +50,14 @@ RUN mkdir -p /var/www/html/storage/logs \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
 # Set ownership to www-data BEFORE setting permissions
-RUN chown -R www-data:www-data /var/www/html
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
+# Nginx configuration
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy nginx configuration
-RUN mkdir -p /etc/nginx/http.d
-COPY <<EOF /etc/nginx/http.d/default.conf
-server {
-    listen 80;
-    server_name _;
-    root /var/www/html/public;
+# Supervisor configuration
+COPY docker/supervisord.conf /etc/supervisord.conf
 
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-
-    index index.php;
-
-    charset utf-8;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    error_page 404 /index.php;
-
-    location ~ \.php$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-}
-EOF
-
-# Copy supervisor configuration
-COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
-[supervisord]
-nodaemon=true
-user=root
-logfile=/dev/stdout
-logfile_maxbytes=0
-
-[program:php-fpm]
-command=php-fpm --nodaemonize
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-
-[program:nginx]
-command=nginx -g 'daemon off;'
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-EOF
 
 # Cache Laravel configuration
 RUN php artisan config:cache && \
