@@ -56,7 +56,7 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
 # Supervisor configuration
-COPY docker/supervisord.conf /etc/supervisord.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 
 # Cache Laravel configuration
